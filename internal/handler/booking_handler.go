@@ -633,8 +633,10 @@ func (h *Handler) createBookingForSlug(ctx context.Context, slug string, startAt
 }
 
 type attendeeJSON struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Locale       string `json:"locale"`
+	IANATimezone string `json:"iana_timezone"`
 }
 
 type bookingJSON struct {
@@ -1694,22 +1696,22 @@ func (h *Handler) enrichBookings(ctx context.Context, bookings []booking.Booking
 		return nil, err
 	}
 
-	// Organizer attendee. Three columns, so it doesn't fit scanPairs; ph is a generated
+	// Organizer attendee. Five columns, so it doesn't fit scanPairs; ph is a generated
 	// run of "?" and every id is bound.
 	rows, err := h.db.QueryContext(ctx, // #nosec G701 -- ph is placeholders(), a generated run of "?"; every value is bound via ids..., never concatenated into the SQL text
-		`SELECT booking_id, name, email FROM booking_attendees
+		`SELECT booking_id, name, email, locale, iana_timezone FROM booking_attendees
 		 WHERE booking_id IN (`+ph+`) AND is_organizer = 1`, ids...) // #nosec G202 -- ph is a generated run of "?" placeholders; every value is bound via ids...
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var bid, name, email string
-		if err := rows.Scan(&bid, &name, &email); err != nil {
+		var bid, name, email, locale, timezone string
+		if err := rows.Scan(&bid, &name, &email, &locale, &timezone); err != nil {
 			continue
 		}
 		if i, ok := idxByID[bid]; ok {
-			items[i].Attendees = append(items[i].Attendees, attendeeJSON{Name: name, Email: email})
+			items[i].Attendees = append(items[i].Attendees, attendeeJSON{Name: name, Email: email, Locale: locale, IANATimezone: timezone})
 		}
 	}
 	return items, rows.Err()
